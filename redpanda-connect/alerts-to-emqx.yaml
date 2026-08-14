@@ -1,0 +1,32 @@
+input:
+  nats_jetstream:
+    urls:
+      - nats://nats:4222
+    stream: ALERTS
+    subject: videoai.alerts
+    durable: rp_alerts_to_emqx
+    ack_wait: 30s
+    max_ack_pending: 128
+    max_reconnects: -1
+
+# No Redpanda Connect buffer is configured on purpose.
+# Its normal transaction model keeps the JetStream input unacknowledged until
+# the MQTT output confirms delivery. JetStream therefore remains the only
+# durable persistence layer for pending outbound events.
+output:
+  mqtt:
+    urls:
+      - "${EMQX_URL}"
+    client_id: "${EMQX_CLIENT_ID:edge-alert-forwarder}"
+    topic: "${EMQX_TOPIC:videoai/alerts}"
+    qos: 1
+    retained: false
+    user: "${EMQX_USERNAME:}"
+    password: "${EMQX_PASSWORD:}"
+    connect_timeout: 10s
+    write_timeout: 10s
+    keepalive: 30
+    max_in_flight: 16
+    tls:
+      enabled: true
+      skip_cert_verify: false

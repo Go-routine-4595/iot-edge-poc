@@ -1,0 +1,18 @@
+input:
+  nats_jetstream:
+    urls: [nats://nats:4222]
+    stream: INFERENCE
+    subject: videoai.inference.events
+    durable: rp_inference_to_mqtt
+    ack_wait: 30s
+    max_ack_pending: 128
+    max_reconnects: -1
+
+output:
+  mqtt:
+    urls: [tcp://nanomq:1883]
+    client_id: rp-inference-to-mqtt
+    topic: videoai/inference/events
+    qos: 1
+    retained: false
+    max_in_flight: 16

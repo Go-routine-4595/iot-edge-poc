@@ -1,0 +1,18 @@
+{
+  "id": "create_alert",
+  "sql": "SELECT * FROM inference_events",
+  "actions": [
+    {
+      "mqtt": {
+        "server": "tcp://nanomq:1883",
+        "topic": "videoai/alerts/generated",
+        "protocolVersion": "3.1.1",
+        "qos": 1,
+        "clientId": "ekuiper-alert-publisher",
+        "retained": false,
+        "sendSingle": true
+      }
+    },
+    { "log": {} }
+  ]
+}

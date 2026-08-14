@@ -1,0 +1,132 @@
+services:
+  nats:
+    image: nats:latest
+    container_name: nats
+    restart: unless-stopped
+    command: ["-c", "/etc/nats/nats.conf"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - ./nats/nats.conf:/etc/nats/nats.conf:ro
+      - ./data/nats:/data
+    networks: [iot-edge]
+
+  nats-init:
+    image: natsio/nats-box:latest
+    container_name: nats-init
+    restart: "no"
+    depends_on:
+      - nats
+    volumes:
+      - ./nats/init.sh:/init.sh:ro
+    entrypoint: ["/bin/sh", "/init.sh"]
+    networks: [iot-edge]
+
+  nanomq:
+    image: emqx/nanomq:latest
+    container_name: nanomq
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./nanomq/nanomq.conf:/etc/nanomq.conf:ro
+    networks: [iot-edge]
+
+  mock-inference:
+    image: christophe2bu/mock-inference:latest
+    container_name: mock-inference
+    restart: unless-stopped
+    env_file:
+      - ./mock-inference/config.env
+    volumes:
+      - ./mock-inference/log:/log
+    depends_on:
+      nats-init:
+        condition: service_completed_successfully
+    networks: [iot-edge]
+
+  rp-inference-to-mqtt:
+    image: docker.redpanda.com/redpandadata/connect:latest
+    container_name: rp-inference-to-mqtt
+    restart: unless-stopped
+    command: ["run", "/connect.yaml"]
+    volumes:
+      - ./redpanda-connect/inference-to-mqtt.yaml:/connect.yaml:ro
+    depends_on:
+      nats-init:
+        condition: service_completed_successfully
+      nanomq:
+        condition: service_started
+    networks: [iot-edge]
+
+  ekuiper:
+    image: lfedge/ekuiper:latest
+    container_name: ekuiper
+    hostname: ekuiper
+    restart: unless-stopped
+    user: root
+    ports:
+      - "9081:9081"
+    environment:
+      MQTT_SOURCE__DEFAULT__SERVER: "tcp://nanomq:1883"
+      MQTT_SOURCE__DEFAULT__QOS: "1"
+      KUIPER__BASIC__CONSOLELOG: "true"
+    volumes:
+      - ./data/ekuiper:/kuiper/data
+      - ./log/ekuiper:/kuiper/log
+    depends_on:
+      nanomq:
+        condition: service_started
+    networks: [iot-edge]
+
+  ekuiper-init:
+    image: curlimages/curl:latest
+    container_name: ekuiper-init
+    restart: "no"
+    depends_on:
+      ekuiper:
+        condition: service_started
+    volumes:
+      - ./ekuiper/init.sh:/init.sh:ro
+      - ./ekuiper/stream.json:/config/stream.json:ro
+      - ./ekuiper/rule.json:/config/rule.json:ro
+    entrypoint: ["/bin/sh", "/init.sh"]
+    networks: [iot-edge]
+
+  rp-alerts-to-jetstream:
+    image: docker.redpanda.com/redpandadata/connect:latest
+    container_name: rp-alerts-to-jetstream
+    restart: unless-stopped
+    command: ["run", "/connect.yaml"]
+    volumes:
+      - ./redpanda-connect/alerts-to-jetstream.yaml:/connect.yaml:ro
+    depends_on:
+      nats-init:
+        condition: service_completed_successfully
+      ekuiper-init:
+        condition: service_completed_successfully
+    networks: [iot-edge]
+
+  rp-alerts-to-emqx:
+    image: docker.redpanda.com/redpandadata/connect:latest
+    container_name: rp-alerts-to-emqx
+    restart: unless-stopped
+    command: ["run", "/connect.yaml"]
+    env_file:
+      - ./redpanda-connect/emqx.env
+    volumes:
+      - ./redpanda-connect/alerts-to-emqx.yaml:/connect.yaml:ro
+      # Uncomment if central EMQX uses a private CA and set EMQX_ROOT_CA_FILE
+      # in redpanda-connect/emqx.env to /certs/ca.pem.
+      # - ./redpanda-connect/certs:/certs:ro
+    depends_on:
+      nats-init:
+        condition: service_completed_successfully
+      rp-alerts-to-jetstream:
+        condition: service_started
+    networks: [iot-edge]
+
+networks:
+  iot-edge:
+    name: iot-edge

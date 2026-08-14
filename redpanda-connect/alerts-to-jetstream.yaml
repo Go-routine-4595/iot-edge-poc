@@ -1,0 +1,15 @@
+input:
+  mqtt:
+    urls: [tcp://nanomq:1883]
+    client_id: rp-alerts-to-jetstream
+    topics: [videoai/alerts/generated]
+    qos: 1
+    clean_session: true
+    auto_replay_nacks: true
+
+output:
+  nats_jetstream:
+    urls: [nats://nats:4222]
+    subject: videoai.alerts
+    max_reconnects: -1
+    max_in_flight: 128
