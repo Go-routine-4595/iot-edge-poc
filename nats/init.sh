@@ -1,14 +1,36 @@
 #!/bin/sh
 set -eu
 URL=nats://nats:4222
-until nats --server "$URL" server ping >/dev/null 2>&1; do sleep 1; done
+
+echo "Waiting for NATS..."
+
+until nats --server "$URL" account info >/dev/null 2>&1; do
+  sleep 1
+done
+
+echo "NATS is ready"
 
 create_stream() {
-  NAME="$1"; SUBJECT="$2"; MAXAGE="$3"; MAXBYTES="$4"
+  NAME="$1"
+  SUBJECT="$2"
+  MAXAGE="$3"
+  MAXBYTES="$4"
+
   if nats --server "$URL" stream info "$NAME" >/dev/null 2>&1; then
     echo "$NAME already exists"
   else
-    nats --server "$URL" stream add "$NAME"       --subjects "$SUBJECT"       --storage file       --retention limits       --discard old       --max-msgs=-1       --max-bytes="$MAXBYTES"       --max-age="$MAXAGE"       --max-msg-size=-1       --replicas 1       --defaults
+    echo "Creating stream $NAME for subject $SUBJECT"
+    nats --server "$URL" stream add "$NAME" \
+    --subjects "$SUBJECT" \
+    --storage file \
+    --retention limits \
+    --discard old \
+    --max-msgs=-1 \
+    --max-bytes="$MAXBYTES" \
+    --max-age="$MAXAGE" \
+    --max-msg-size=-1 \
+    --replicas 1 \
+    --defaults
   fi
 }
 

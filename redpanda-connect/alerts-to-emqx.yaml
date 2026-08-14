@@ -29,4 +29,4 @@ output:
     max_in_flight: 16
     tls:
       enabled: true
-      skip_cert_verify: false
+      skip_cert_verify: true
