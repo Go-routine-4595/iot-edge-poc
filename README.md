@@ -91,6 +91,7 @@ HOST=nats
 PORT=4222
 CLIENT_ID=mock-inference-client
 TOPICS=videoai.inference.events
+STREAM_NAME=INFERENCE
 ```
 
 Within the Compose network, `nats` is the broker hostname.
