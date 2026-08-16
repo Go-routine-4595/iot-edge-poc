@@ -3,7 +3,7 @@ set -eu
 
 URL=nats://nats:4222
 
-until nats --server "$URL" server ping >/dev/null 2>&1; do
+until nats --server "$URL" stream ls >/dev/null 2>&1; do
     sleep 1
 done
 
