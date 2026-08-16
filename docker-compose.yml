@@ -9,7 +9,7 @@ services:
       - "8222:8222"
     volumes:
       - ./nats/nats.conf:/etc/nats/nats.conf:ro
-      - ./data/nats:/data
+      - /opt/iot-edge/data/nats:/data
     networks: [iot-edge]
 
   nats-init:
@@ -40,7 +40,7 @@ services:
     env_file:
       - ./mock-inference/config.env
     volumes:
-      - ./mock-inference/log:/log
+      - /opt/iot-edge/log/mock-inference:/log
     depends_on:
       nats-init:
         condition: service_completed_successfully
@@ -73,8 +73,8 @@ services:
       MQTT_SOURCE__DEFAULT__QOS: "1"
       KUIPER__BASIC__CONSOLELOG: "true"
     volumes:
-      - ./data/ekuiper:/kuiper/data
-      - ./log/ekuiper:/kuiper/log
+      - /opt/iot-edge/data/ekuiper:/kuiper/data
+      - /opt/iot-edge/log/ekuiper:/kuiper/log
     depends_on:
       nanomq:
         condition: service_started
