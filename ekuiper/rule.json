@@ -1,6 +1,6 @@
 {
   "id": "create_alert",
-  "sql": "SELECT * FROM inference_events",
+  "sql": "SELECT * FROM inference_events WHERE confidence > 0.6",
   "actions": [
     {
       "mqtt": {
