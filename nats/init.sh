@@ -17,16 +17,15 @@ configure_stream() {
         echo "Updating stream $NAME"
 
         nats --server "$URL" stream update "$NAME" \
-            --subjects "$SUBJECT" \
-            --storage file \
-            --retention limits \
-            --discard old \
-            --max-msgs=-1 \
-            --max-bytes="$MAXBYTES" \
-            --max-age="$MAXAGE" \
-            --max-msg-size=-1 \
-            --replicas 1 \
-            --force
+                --subjects "$SUBJECT" \
+                --retention limits \
+                --discard old \
+                --max-msgs=-1 \
+                --max-bytes="$MAXBYTES" \
+                --max-age="$MAXAGE" \
+                --max-msg-size=-1 \
+                --replicas 1 \
+                --force
     else
         echo "Creating stream $NAME"
 
