@@ -43,7 +43,9 @@ configure_stream() {
     fi
 }
 
+echo "-------------------------- nat-init starting --------------------------"
 configure_stream INFERENCE videoai.inference.events 1h 262144000
 configure_stream ALERTS videoai.alerts 24h 262144000
 
 nats --server "$URL" stream list
+echo "-------------------------- nat-init exiting --------------------------"
