@@ -10,6 +10,12 @@ services:
     volumes:
       - ./nats/nats.conf:/etc/nats/nats.conf:ro
       - /opt/iot-edge/data/nats:/data
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- 'http://localhost:8222/healthz?js-enabled-only=true' >/dev/null || exit 1" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
     networks: [iot-edge]
 
   nats-init:
@@ -17,7 +23,8 @@ services:
     container_name: nats-init
     restart: "no"
     depends_on:
-      - nats
+      nats:
+        condition: service_healthy
     volumes:
       - ./nats/init.sh:/init.sh:ro
     entrypoint: ["/bin/sh", "/init.sh"]
@@ -31,6 +38,12 @@ services:
       - "1883:1883"
     volumes:
       - ./nanomq/nanomq.conf:/etc/nanomq.conf:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "nc -z 127.0.0.1 1883 || exit 1" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
     networks: [iot-edge]
 
   mock-inference:
@@ -42,8 +55,17 @@ services:
     volumes:
       - /opt/iot-edge/log/mock-inference:/log
     depends_on:
+      nats:
+        condition: service_healthy
+        restart: true
       nats-init:
         condition: service_completed_successfully
+    healthcheck:
+      test: [ "CMD", "/mock-inference", "--healthcheck" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     networks: [iot-edge]
 
   rp-inference-to-mqtt:
@@ -57,7 +79,14 @@ services:
       nats-init:
         condition: service_completed_successfully
       nanomq:
-        condition: service_started
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:4195/ready >/dev/null || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     networks: [iot-edge]
 
   ekuiper:
@@ -77,7 +106,8 @@ services:
       - /opt/iot-edge/log/ekuiper:/kuiper/log
     depends_on:
       nanomq:
-        condition: service_started
+        condition: service_healthy
+        restart: true
     networks: [iot-edge]
 
   ekuiper-init:
@@ -102,10 +132,19 @@ services:
     volumes:
       - ./redpanda-connect/alerts-to-jetstream.yaml:/connect.yaml:ro
     depends_on:
+      nats:
+        condition: service_healthy
+        restart: true
       nats-init:
         condition: service_completed_successfully
       ekuiper-init:
         condition: service_completed_successfully
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:4195/ready >/dev/null || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     networks: [iot-edge]
 
   rp-alerts-to-emqx:
@@ -121,10 +160,19 @@ services:
       # in redpanda-connect/emqx.env to /certs/ca.pem.
       # - ./redpanda-connect/certs:/certs:ro
     depends_on:
+      nats:
+        condition: service_healthy
+        restart: true
       nats-init:
         condition: service_completed_successfully
       rp-alerts-to-jetstream:
         condition: service_started
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:4195/ready >/dev/null || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     networks: [iot-edge]
 
 networks:
