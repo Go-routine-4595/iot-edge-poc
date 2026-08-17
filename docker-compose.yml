@@ -108,6 +108,12 @@ services:
       nanomq:
         condition: service_healthy
         restart: true
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:9081 >/dev/null || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     networks: [iot-edge]
 
   ekuiper-init:
