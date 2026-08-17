@@ -1,0 +1,115 @@
+# Copper Sentinel — Rules Engine Pipeline
+# Redpanda Connect / Bloblang
+#
+# Branch: feature/bloblang-rules
+# Replaces eKuiper in the iot-edge-poc stack.
+#
+# Input:  NanoMQ MQTT  videoai/inference/events
+# Output: NanoMQ MQTT  videoai/alerts/generated
+#
+# TODO: Field names below (use_case, camera_id, violation_type) are assumed.
+# Run the stack with mock-inference and subscribe to videoai/inference/events
+# to confirm the actual payload schema before finalising these rules:
+#   nats sub "videoai.inference.events" --server nats://localhost:4222
+# or via NanoMQ:
+#   mosquitto_sub -h localhost -p 1883 -t "videoai/inference/events"
+# Adjust field names in the mapping blocks to match what mock-inference publishes.
+
+input:
+  mqtt:
+    urls:
+      - "tcp://nanomq:1883"
+    topics:
+      - "videoai/inference/events"
+    client_id: "rp-rules-engine-input"
+    qos: 1
+    clean_session: false
+
+pipeline:
+  processors:
+
+    # ── Step 1: Validate — drop events missing confidence field ──
+    - mapping: |
+        root = if !this.exists("confidence") {
+          deleted()
+        } else {
+          this
+        }
+
+    # ── Step 2: Apply business rules ──
+    # TODO: The switch below assumes mock-inference emits a use_case field.
+    # If it does not, remove the switch entirely and use only the fallback
+    # generic rule block — confirmed by observing the actual payload.
+    - switch:
+        - check: this.use_case == "belt_splice"
+          processors:
+            - mapping: |
+                let threshold = 0.85
+                root = if this.confidence >= $threshold {
+                  this.merge({
+                    "alert": true,
+                    "alert_level": if this.confidence >= 0.95 { "critical" } else { "warning" },
+                    "rule_id": "BELT-001",
+                    "rule_desc": "Belt splice confidence threshold exceeded",
+                    "threshold_applied": $threshold,
+                    "processed_at": now()
+                  })
+                } else {
+                  deleted()
+                }
+
+        - check: this.use_case == "ppe_compliance"
+          processors:
+            - mapping: |
+                let threshold = 0.80
+                root = if this.confidence >= $threshold && this.exists("violation_type") {
+                  this.merge({
+                    "alert": true,
+                    "alert_level": "warning",
+                    "rule_id": "PPE-001",
+                    "rule_desc": "PPE violation detected above confidence threshold",
+                    "threshold_applied": $threshold,
+                    "processed_at": now()
+                  })
+                } else {
+                  deleted()
+                }
+
+        # ── Fallback: no use_case field — global confidence threshold ──
+        # TODO: Remove this block once use_case is confirmed in the payload
+        # and replaced with explicit per-use-case rules above.
+        - processors:
+            - mapping: |
+                let threshold = 0.60
+                root = if this.confidence >= $threshold {
+                  this.merge({
+                    "alert": true,
+                    "alert_level": if this.confidence >= 0.90 { "critical" } else { "warning" },
+                    "rule_id": "GENERIC-001",
+                    "rule_desc": "Confidence threshold exceeded",
+                    "threshold_applied": $threshold,
+                    "processed_at": now()
+                  })
+                } else {
+                  deleted()
+                }
+
+    # ── Step 3: Stamp site metadata onto every outbound alert ──
+    - mapping: |
+        root = this.merge({
+          "site_code": "LAB",
+          "node_id":   "piblade-edge"
+        })
+
+output:
+  mqtt:
+    urls:
+      - "tcp://nanomq:1883"
+    topic: "videoai/alerts/generated"
+    client_id: "rp-rules-engine-output"
+    qos: 1
+    retained: false
+
+logger:
+  level: INFO
+  format: logfmt
