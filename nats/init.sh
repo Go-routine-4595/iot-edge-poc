@@ -44,6 +44,11 @@ configure_stream() {
 }
 
 echo "-------------------------- nat-init starting --------------------------"
+
+# INFERENCE captures what mock-inference publishes over core NATS.
+# ALERTS captures what eKuiper publishes over MQTT on topic "videoai/alerts":
+# the server's built-in MQTT listener maps that topic to the NATS subject
+# videoai.alerts, so this stream stores it with no adapter in between.
 configure_stream INFERENCE videoai.inference.events 1h 262144000
 configure_stream ALERTS videoai.alerts 24h 262144000
 

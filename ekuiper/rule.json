@@ -4,8 +4,8 @@
   "actions": [
     {
       "mqtt": {
-        "server": "tcp://nanomq:1883",
-        "topic": "videoai/alerts/generated",
+        "server": "tcp://nats:1883",
+        "topic": "videoai/alerts",
         "protocolVersion": "3.1.1",
         "qos": 1,
         "clientId": "ekuiper-alert-publisher",

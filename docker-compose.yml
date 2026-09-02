@@ -5,8 +5,9 @@ services:
     restart: unless-stopped
     command: ["-c", "/etc/nats/nats.conf"]
     ports:
-      - "4222:4222"
-      - "8222:8222"
+      - "4222:4222"   # core NATS / JetStream
+      - "1883:1883"   # built-in MQTT listener (eKuiper, local MQTT clients)
+      - "8222:8222"   # monitoring
     volumes:
       - ./nats/nats.conf:/etc/nats/nats.conf:ro
       - /opt/iot-edge/data/nats:/data
@@ -28,22 +29,6 @@ services:
     volumes:
       - ./nats/init.sh:/init.sh:ro
     entrypoint: ["/bin/sh", "/init.sh"]
-    networks: [iot-edge]
-
-  nanomq:
-    image: emqx/nanomq:latest
-    container_name: nanomq
-    restart: unless-stopped
-    ports:
-      - "1883:1883"
-    volumes:
-      - ./nanomq/nanomq.conf:/etc/nanomq.conf:ro
-    healthcheck:
-      test: [ "CMD-SHELL", "nc -z 127.0.0.1 1883 || exit 1" ]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 5s
     networks: [iot-edge]
 
   mock-inference:
@@ -68,27 +53,6 @@ services:
       start_period: 5s
     networks: [iot-edge]
 
-  rp-inference-to-mqtt:
-    image: docker.redpanda.com/redpandadata/connect:latest
-    container_name: rp-inference-to-mqtt
-    restart: unless-stopped
-    command: ["run", "/connect.yaml"]
-    volumes:
-      - ./redpanda-connect/inference-to-mqtt.yaml:/connect.yaml:ro
-    depends_on:
-      nats-init:
-        condition: service_completed_successfully
-      nanomq:
-        condition: service_healthy
-        restart: true
-    healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://localhost:4195/ready >/dev/null || exit 1" ]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-    networks: [iot-edge]
-
   ekuiper:
     image: lfedge/ekuiper:latest
     container_name: ekuiper
@@ -98,16 +62,25 @@ services:
     ports:
       - "9081:9081"
     environment:
-      MQTT_SOURCE__DEFAULT__SERVER: "tcp://nanomq:1883"
-      MQTT_SOURCE__DEFAULT__QOS: "1"
+      # eKuiper's default MQTT source now points at the NATS MQTT listener.
+      # NATS accepts MQTT 3.1.1 only.
+      MQTT_SOURCE__DEFAULT__SERVER: "tcp://nats:1883"
+      MQTT_SOURCE__DEFAULT__PROTOCOLVERSION: "3.1.1"
+      # QoS 0: messages published by core NATS clients (mock-inference) are
+      # always delivered to MQTT subscriptions as QoS 0 by design, so asking
+      # for QoS 1 here would only create MQTT session state with no benefit.
+      MQTT_SOURCE__DEFAULT__QOS: "0"
+      MQTT_SOURCE__DEFAULT__CLIENTID: "ekuiper-inference-sub"
       KUIPER__BASIC__CONSOLELOG: "true"
     volumes:
       - /opt/iot-edge/data/ekuiper:/kuiper/data
       - /opt/iot-edge/log/ekuiper:/kuiper/log
     depends_on:
-      nanomq:
+      nats:
         condition: service_healthy
         restart: true
+      nats-init:
+        condition: service_completed_successfully
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://localhost:9081 >/dev/null || exit 1" ]
       interval: 10s
@@ -130,29 +103,6 @@ services:
     entrypoint: ["/bin/sh", "/init.sh"]
     networks: [iot-edge]
 
-  rp-alerts-to-jetstream:
-    image: docker.redpanda.com/redpandadata/connect:latest
-    container_name: rp-alerts-to-jetstream
-    restart: unless-stopped
-    command: ["run", "/connect.yaml"]
-    volumes:
-      - ./redpanda-connect/alerts-to-jetstream.yaml:/connect.yaml:ro
-    depends_on:
-      nats:
-        condition: service_healthy
-        restart: true
-      nats-init:
-        condition: service_completed_successfully
-      ekuiper-init:
-        condition: service_completed_successfully
-    healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://localhost:4195/ready >/dev/null || exit 1" ]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-    networks: [iot-edge]
-
   rp-alerts-to-emqx:
     image: docker.redpanda.com/redpandadata/connect:latest
     container_name: rp-alerts-to-emqx
@@ -171,8 +121,8 @@ services:
         restart: true
       nats-init:
         condition: service_completed_successfully
-      rp-alerts-to-jetstream:
-        condition: service_started
+      ekuiper-init:
+        condition: service_completed_successfully
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://localhost:4195/ready >/dev/null || exit 1" ]
       interval: 10s
