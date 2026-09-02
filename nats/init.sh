@@ -16,9 +16,8 @@ configure_stream() {
     if nats --server "$URL" stream info "$NAME" >/dev/null 2>&1; then
         echo "Updating stream $NAME"
 
-        nats --server "$URL" stream update "$NAME" \
+        nats --server "$URL" stream edit "$NAME" \
                 --subjects "$SUBJECT" \
-                --retention limits \
                 --discard old \
                 --max-msgs=-1 \
                 --max-bytes="$MAXBYTES" \
