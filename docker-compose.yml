@@ -1,7 +1,11 @@
 services:
+  # ---------------------------------------------------------------------------
+  # NATS: JetStream persistence + built-in MQTT listener.
+  # Single messaging owner for the edge: core NATS subjects for internal
+  # publishers, MQTT 3.1.1 on 1883 for eKuiper and any local MQTT client.
+  # ---------------------------------------------------------------------------
   nats:
     image: nats:2.14-alpine
-    container_name: nats
     restart: unless-stopped
     command: ["-c", "/etc/nats/nats.conf"]
     ports:
@@ -17,11 +21,16 @@ services:
       timeout: 3s
       retries: 10
       start_period: 5s
+    # mem_limit: 512m
     networks: [iot-edge]
 
+  # ---------------------------------------------------------------------------
+  # One-shot: create/update the INFERENCE and ALERTS JetStream streams.
+  # Exits 0 on success. Its retry loop is bounded (see nats/init.sh) so a
+  # failure surfaces in the Komodo log within 60s instead of hanging the deploy.
+  # ---------------------------------------------------------------------------
   nats-init:
-    image: natsio/nats-box:latest
-    container_name: nats-init
+    image: natsio/nats-box:0.18.0
     restart: "no"
     depends_on:
       nats:
@@ -33,7 +42,6 @@ services:
 
   mock-inference:
     image: christophe2bu/mock-inference:latest
-    container_name: mock-inference
     restart: unless-stopped
     env_file:
       - ./mock-inference/config.env
@@ -51,11 +59,11 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
+    # mem_limit: 128m
     networks: [iot-edge]
 
   ekuiper:
-    image: lfedge/ekuiper:latest
-    container_name: ekuiper
+    image: lfedge/ekuiper:2.4.0
     hostname: ekuiper
     restart: unless-stopped
     user: root
@@ -87,15 +95,20 @@ services:
       timeout: 3s
       retries: 5
       start_period: 10s
+    # mem_limit: 512m
     networks: [iot-edge]
 
+  # ---------------------------------------------------------------------------
+  # One-shot: install the inference_events stream and the create_alert rule.
+  # Waits on ekuiper being *healthy* (not merely started), so the bounded retry
+  # loop in ekuiper/init.sh is a backstop rather than the primary wait.
+  # ---------------------------------------------------------------------------
   ekuiper-init:
-    image: curlimages/curl:latest
-    container_name: ekuiper-init
+    image: curlimages/curl:8.11.1
     restart: "no"
     depends_on:
       ekuiper:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./ekuiper/init.sh:/init.sh:ro
       - ./ekuiper/stream.json:/config/stream.json:ro
@@ -104,8 +117,7 @@ services:
     networks: [iot-edge]
 
   rp-alerts-to-emqx:
-    image: docker.redpanda.com/redpandadata/connect:latest
-    container_name: rp-alerts-to-emqx
+    image: docker.redpanda.com/redpandadata/connect:4.45.1
     restart: unless-stopped
     command: ["run", "/connect.yaml"]
     env_file:
@@ -123,14 +135,23 @@ services:
         condition: service_completed_successfully
       ekuiper-init:
         condition: service_completed_successfully
+    # NOTE: verify this image has /bin/sh AND wget before trusting this check:
+    #   docker run --rm --entrypoint sh <image> -c 'which wget || echo NO_WGET'
+    # If either is missing the container reports (unhealthy) forever while
+    # working fine. Nothing gates on it, so this cannot deadlock the deploy --
+    # but delete the block rather than leaving a check that always fails.
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://localhost:4195/ready >/dev/null || exit 1" ]
       interval: 10s
       timeout: 3s
       retries: 3
       start_period: 10s
+    # mem_limit: 256m
     networks: [iot-edge]
 
+# Project-scoped network: Compose names it <project>_iot-edge, so a leftover
+# stack can never contend for it and `docker compose down` actually removes it.
+# Service-to-service DNS (nats, ekuiper) is unaffected -- it resolves by
+# service name, not container name.
 networks:
-  iot-edge:
-    name: iot-edge
+  iot-edge: {}
