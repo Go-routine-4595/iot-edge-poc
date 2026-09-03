@@ -30,7 +30,7 @@ services:
   # failure surfaces in the Komodo log within 60s instead of hanging the deploy.
   # ---------------------------------------------------------------------------
   nats-init:
-    image: natsio/nats-box:0.18.0
+    image: natsio/nats-box:latest
     restart: "no"
     depends_on:
       nats:
@@ -63,7 +63,7 @@ services:
     networks: [iot-edge]
 
   ekuiper:
-    image: lfedge/ekuiper:2.4.0
+    image: lfedge/ekuiper:latest
     hostname: ekuiper
     restart: unless-stopped
     user: root
@@ -104,7 +104,7 @@ services:
   # loop in ekuiper/init.sh is a backstop rather than the primary wait.
   # ---------------------------------------------------------------------------
   ekuiper-init:
-    image: curlimages/curl:8.11.1
+    image: curlimages/curl:latest
     restart: "no"
     depends_on:
       ekuiper:
@@ -117,7 +117,7 @@ services:
     networks: [iot-edge]
 
   rp-alerts-to-emqx:
-    image: docker.redpanda.com/redpandadata/connect:4.45.1
+    image: docker.redpanda.com/redpandadata/connect:latest
     restart: unless-stopped
     command: ["run", "/connect.yaml"]
     env_file:
