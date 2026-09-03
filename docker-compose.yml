@@ -29,6 +29,8 @@ services:
   # Exits 0 on success. Its retry loop is bounded (see nats/init.sh) so a
   # failure surfaces in the Komodo log within 60s instead of hanging the deploy.
   # ---------------------------------------------------------------------------
+  # Version: 0.19.7
+  # Release-Date: Jun 2, 2026 at 11:43 am
   nats-init:
     image: natsio/nats-box:latest
     restart: "no"
@@ -62,6 +64,8 @@ services:
     # mem_limit: 128m
     networks: [iot-edge]
 
+  # Version: v2.4.1-alpine
+  # Release-Date: Aug 13, 2026 at 8:24 pm
   ekuiper:
     image: lfedge/ekuiper:latest
     hostname: ekuiper
@@ -103,6 +107,8 @@ services:
   # Waits on ekuiper being *healthy* (not merely started), so the bounded retry
   # loop in ekuiper/init.sh is a backstop rather than the primary wait.
   # ---------------------------------------------------------------------------
+  # Version curl: 8.22.0
+  # Release-Date: 2026-09-02
   ekuiper-init:
     image: curlimages/curl:latest
     restart: "no"
@@ -116,6 +122,8 @@ services:
     entrypoint: ["/bin/sh", "/init.sh"]
     networks: [iot-edge]
 
+  # Version: 4.107.2
+  # Date: 2026-08-31T15:57:15Z
   rp-alerts-to-emqx:
     image: docker.redpanda.com/redpandadata/connect:latest
     restart: unless-stopped
