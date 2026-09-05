@@ -8,6 +8,8 @@ services:
     image: nats:2.14-alpine
     restart: unless-stopped
     command: ["-c", "/etc/nats/nats.conf"]
+    env_file:
+      - /opt/iot-edge/leaf.env
     ports:
       - "4222:4222"   # core NATS / JetStream
       - "1883:1883"   # built-in MQTT listener (eKuiper, local MQTT clients)
