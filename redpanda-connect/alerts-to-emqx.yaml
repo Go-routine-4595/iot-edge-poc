@@ -5,6 +5,7 @@ input:
     stream: ALERTS
     subject: videoai.alerts
     durable: rp_alerts_to_emqx_edge
+    deliver: new # avoid to send all event the stream. These old events are not relevant anymore.
     ack_wait: 30s
     max_ack_pending: 128
     max_reconnects: -1
