@@ -4,7 +4,7 @@ input:
       - nats://nats:4222
     stream: ALERTS
     subject: videoai.alerts
-    durable: rp_alerts_to_emqx
+    durable: rp_alerts_to_emqx_edge
     ack_wait: 30s
     max_ack_pending: 128
     max_reconnects: -1
