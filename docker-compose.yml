@@ -10,6 +10,8 @@ services:
     command: ["-c", "/etc/nats/nats.conf"]
     env_file:
       - /opt/iot-edge/leaf.env
+    environment:
+      EDGE_ID: "${EDGE_ID}"
     ports:
       - "4222:4222"   # core NATS / JetStream
       - "1883:1883"   # built-in MQTT listener (eKuiper, local MQTT clients)
