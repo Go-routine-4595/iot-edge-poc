@@ -48,8 +48,8 @@ echo "-------------------------- nat-init starting --------------------------"
 # ALERTS captures what eKuiper publishes over MQTT on topic "videoai/alerts":
 # the server's built-in MQTT listener maps that topic to the NATS subject
 # videoai.alerts, so this stream stores it with no adapter in between.
-configure_stream INFERENCE videoai.inference.events 1h 262144000
-configure_stream ALERTS videoai.alerts 24h 262144000
+configure_stream INFERENCE "videoai.inference.events,videoai.inference.det.>" 1h 262144000
+configure_stream ALERTS "videoai.alerts" 24h 262144000
 
 nats --server "$URL" stream list
 echo "-------------------------- nat-init exiting --------------------------"
